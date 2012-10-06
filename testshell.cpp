@@ -5,6 +5,9 @@
 #include <string>
 #include <chrono>
 #include <vector>
+#include <sstream>
+#include <algorithm>
+#include <iterator>
 
 using namespace std;
 
@@ -23,6 +26,13 @@ bool isFutureReady(future<T>& f){
   return f.wait_for(chrono::seconds(0)) == future_status::ready;
 }
 
+vector<string> WSTokenizeString(string str){
+  vector<string> out;
+  istringstream iss(str);
+  copy(istream_iterator<string>(iss), istream_iterator<string>(),back_inserter<vector<string>>(out));
+  return out;
+}
+
 int main(int argc, char** argv){
   if(argc > 1){
     string param(argv[1]);
@@ -33,25 +43,42 @@ int main(int argc, char** argv){
     }
   }
 
-  map<string, function<void (void)>> commands;
+  map<string, function<void (vector<string>)>> commands;
 
-  commands["test"] = [](){cout<<"\ntest success!"<<endl;};
-  commands["longtest"] = [](){
+  //example commands
+  commands["test"] = [](vector<string> args){
+    stringstream ss("\ntest success!\nargs:\n");
+    for(string arg:args){ss<<"   "<<arg<<endl;}
+    cout<<ss.str()<<flush;
+  };
+  commands["longtest"] = [](vector<string> args){
     auto start = chrono::system_clock::now();
     for(double i=0;i<5000;){i = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now()-start).count();}
     cout<<"\nlong test success!"<<endl;
   };
 
-  string cmd = "";
+  commands["setuproot"] = [&commands](vector<string> args){
+    commands["root"] = [](vector<string> args){cout<<"you are now root"<<endl;};
+  };
+
+  commands["deroot"] = [&commands](vector<string> args){
+    if(commands.find("root") != commands.end()){
+      commands.erase(commands.find("root"));
+    }
+  };
+
 
   vector<future<void>> tasks;
 
+  commands["test"](WSTokenizeString("test this thing"));
+
   while(1){
+    string cmd = "";
     cout<<"TestShell>";
     cin>>cmd;
 
     //break if user uses exit command
-    if(caseInsensitiveStringCompare(cmd,"exit"))
+    if(caseInsensitiveStringCompare(WSTokenizeString(cmd)[0],"exit"))
       break;
 
     //clean tasks queue of finished tasks
@@ -60,10 +87,10 @@ int main(int argc, char** argv){
 	tasks.erase(i);
     }
 
-    if(commands.find(strToLower(cmd)) == commands.end()){
-      cout<<"No such command:"<<cmd<<endl;
+    if(commands.find(strToLower(WSTokenizeString(cmd)[0])) == commands.end()){
+      cout<<"No such command: "<<WSTokenizeString(cmd)[0]<<endl;
     }else{
-      tasks.push_back(async(commands[strToLower(cmd)]));
+      tasks.push_back(async(commands[strToLower(WSTokenizeString(cmd)[0])],WSTokenizeString(cmd)));
     }
   }
 
