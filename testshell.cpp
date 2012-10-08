@@ -1,3 +1,13 @@
+/*------------------------------
+
+  TestShell
+  Author: Matthew Clark
+
+  Feel free to use this for whatever. I'm not responsible for damage. 
+  If you want to give me credit for something cool feel free.^_^
+
+  ------------------------------*/
+
 #include <iostream>
 #include <functional>
 #include <future>
