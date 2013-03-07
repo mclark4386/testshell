@@ -15,33 +15,14 @@
 #include <string>
 #include <chrono>
 #include <vector>
-#include <sstream>
-#include <algorithm>
-#include <iterator>
+#include <mutex>
+#include <utility>
+
+#include "utils.hpp"
 
 using namespace std;
 
-string strToLower(const string& a){
-  string str(a);
-  transform(str.begin(), str.end(), str.begin(), ::tolower);
-  return str;
-}
-
-bool caseInsensitiveStringCompare(const string& a, const string& b){
-  return (strToLower(a) == strToLower(b));
-}
-
-template<typename T>
-bool isFutureReady(future<T>& f){
-  return f.wait_for(chrono::seconds(0)) == future_status::ready;
-}
-
-vector<string> WSTokenizeString(string str){
-  vector<string> out;
-  istringstream iss(str);
-  copy(istream_iterator<string>(iss), istream_iterator<string>(),back_inserter<vector<string>>(out));
-  return out;
-}
+mutex coutMutex;
 
 int main(int argc, char** argv){
   if(argc > 1){
@@ -59,16 +40,20 @@ int main(int argc, char** argv){
   commands["test"] = [](vector<string> args){
     stringstream ss("\ntest success!\nargs:\n");
     for(string arg:args){ss<<"   "<<arg<<endl;}
+
+    lock_guard<mutex> cm(coutMutex);
     cout<<ss.str()<<flush;
   };
   commands["longtest"] = [](vector<string> args){
     auto start = chrono::system_clock::now();
     for(double i=0;i<5000;){i = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now()-start).count();}
+
+    lock_guard<mutex> cm(coutMutex);
     cout<<"\nlong test success!"<<endl;
   };
 
   commands["setuproot"] = [&commands](vector<string> args){
-    commands["root"] = [](vector<string> args){cout<<"you are now root"<<endl;};
+    commands["root"] = [](vector<string> args){lock_guard<mutex> cm(coutMutex);cout<<"you are now root"<<endl;};
   };
 
   commands["deroot"] = [&commands](vector<string> args){
@@ -84,7 +69,10 @@ int main(int argc, char** argv){
 
   while(1){
     string cmd = "";
+
+    coutMutex.lock();
     cout<<"TestShell>";
+    coutMutex.unlock();
     cin>>cmd;
 
     //break if user uses exit command
@@ -98,6 +86,7 @@ int main(int argc, char** argv){
     }
 
     if(commands.find(strToLower(WSTokenizeString(cmd)[0])) == commands.end()){
+      lock_guard<mutex> cm(coutMutex);
       cout<<"No such command: "<<WSTokenizeString(cmd)[0]<<endl;
     }else{
       tasks.push_back(async(commands[strToLower(WSTokenizeString(cmd)[0])],WSTokenizeString(cmd)));
